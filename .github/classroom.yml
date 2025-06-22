@@ -1,0 +1,117 @@
+name: Secure Autograding
+on:
+  - push
+  - workflow_dispatch
+permissions:
+  checks: write
+  actions: read
+  contents: read
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+    
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: student_submission
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+    steps:
+      - name: Checkout student code
+        uses: actions/checkout@v4
+      
+      - name: Load reference data
+        run: |
+          mysql -h127.0.0.1 -uroot -proot student_submission < <(echo "
+          -- Create denormalized table for student to use
+          CREATE TABLE denormalized_orders (
+            order_id INT,
+            order_quantity INT,
+            seller_id INT,
+            product_id INT,
+            product_price INT,
+            product_name VARCHAR(255),
+            buyer_id INT,
+            first_name VARCHAR(100),
+            last_name VARCHAR(100),
+            email VARCHAR(255),
+            address VARCHAR(255),
+            city VARCHAR(100),
+            country VARCHAR(100),
+            cc_number VARCHAR(16),
+            cc_exp VARCHAR(7),
+            review TEXT,
+            rating INT,
+            seller_name VARCHAR(255),
+            seller_country VARCHAR(100),
+            order_date DATE
+          );
+
+          -- Create reference table for tests
+          CREATE TABLE reference_data LIKE denormalized_orders;
+          
+          SET GLOBAL local_infile = 1;
+          ")
+          
+          # Load into denormalized_orders
+          mysql --local-infile=1 -h127.0.0.1 -uroot -proot student_submission -e "
+          LOAD DATA LOCAL INFILE 'denormalized_orders.csv' 
+          INTO TABLE denormalized_orders 
+          FIELDS TERMINATED BY ',' 
+          ENCLOSED BY '\"' 
+          LINES TERMINATED BY '\n' 
+          IGNORE 1 ROWS
+          (order_id, order_quantity, seller_id, product_id, product_price, 
+           product_name, buyer_id, first_name, last_name, email, address, 
+           city, country, cc_number, cc_exp, review, rating, seller_name, 
+           seller_country, @order_date)
+          SET order_date = STR_TO_DATE(@order_date, '%m-%d-%Y');"
+
+          # Load into reference_data  
+          mysql --local-infile=1 -h127.0.0.1 -uroot -proot student_submission -e "
+          LOAD DATA LOCAL INFILE 'denormalized_orders.csv' 
+          INTO TABLE reference_data 
+          FIELDS TERMINATED BY ',' 
+          ENCLOSED BY '\"' 
+          LINES TERMINATED BY '\n' 
+          IGNORE 1 ROWS
+          (order_id, order_quantity, seller_id, product_id, product_price, 
+           product_name, buyer_id, first_name, last_name, email, address, 
+           city, country, cc_number, cc_exp, review, rating, seller_name, 
+           seller_country, @order_date)
+          SET order_date = STR_TO_DATE(@order_date, '%m-%d-%Y');"
+          
+      - name: Load student solution  
+        run: |
+          mysql -h127.0.0.1 --local-infile=1 -uroot -proot student_submission < project.sql
+          
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install mysql-connector-python
+      
+      - name: Create test file
+        run: |
+          echo "${{ secrets.TEST }}" | base64 -d > test_database.py
+
+
+      - name: Run Database Tests  
+        id: db-tests
+        run: |
+          echo "result=$(python test_database.py | base64 -w 0)" >> "$GITHUB_OUTPUT"
+
+      - name: Autograding Reporter
+        uses: classroom-resources/autograding-grading-reporter@v1
+        env:
+          DB-TESTS_RESULTS: ${{ steps.db-tests.outputs.result }}
+        with:
+          runners: db-tests
