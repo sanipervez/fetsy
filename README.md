@@ -1,18 +1,18 @@
 ## Fetsy Ecommerce Database Project
 In this project, I transformed a large denormalized dataset of 400,000 ecommerce order records into a fully normalized MySQL database following Third Normal Form (3NF) principles. This restructuring improved data integrity, minimized redundancy, and optimized query performance for the Fetsy ecommerce platform.
 
-# Database Design & Normalization
+### Database Design & Normalization
 - Normalized the original denormalized table into multiple related tables, ensuring all data adhered to 3NF rules.
 - Carefully analyzed the cardinality between entities (1:1, 1:many, many:many) by running queries on the raw data to understand relationships, such as buyers to addresses or products to sellers.
 - Maintained original column names from the denormalized table to preserve consistency.
 - Applied appropriate data types, constraints, and foreign keys to enforce referential integrity across tables.
 
-# Indexing & Performance Optimization
+### Indexing & Performance Optimization
 - Added indexes strategically based on query patterns.
 - Used the EXPLAIN statement to analyze query execution plans before and after indexing.
 - Documented decisions when indexes would not improve performance, demonstrating a clear understanding of optimization.
 
-# Stored Procedures & Views
+### Stored Procedures & Views
 Implemented multiple stored procedures and views to enable efficient data retrieval and reporting, including:
 - top_ten_for_country: Accepts a country parameter and returns the top 10 buyers by total amount spent in that country.
 
