@@ -1,5 +1,4 @@
 
-use cisc3810;
 CREATE TABLE denormalized_orders (
     order_id INT,
     order_quantity INT,
